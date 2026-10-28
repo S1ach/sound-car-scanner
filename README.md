@@ -99,7 +99,7 @@ pipeline.py           оркестратор + CLI
 scripts/              run_simulation.py (Сафаров), precompute_lut.py
 tests/                контрактные тесты, тесты оконного менеджера, smoke-тест конвейера
 data/                 raw/, lut/, logs/: не коммитится
-cv_tracker/           [на будущее]
+cv_tracker/           [на будущее] yolo_tracker.py (YOLO + BoT-SORT), camera_calibration.py (пиксели → азимут/угол места)
 ```
 
 ## Форматы данных
