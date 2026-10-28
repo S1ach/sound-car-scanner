@@ -1,0 +1,27 @@
+{
+  "window": {
+    "frame_duration_ms": 40.0,
+    "overlap_pct": 50.0
+  },
+  "realtime_budget_ms": 20.0,
+  "confidence_threshold": 0.5,
+  "strict_contract": true,
+
+  "pre_processing": [
+    {"name": "denoiser", "enabled": true, "params": {}}
+  ],
+  "detectors": [
+    {"name": "onset_detector", "enabled": true, "params": {}}
+  ],
+  "localizers": [
+    {"name": "music_siren",    "enabled": true, "params": {}},
+    {"name": "gcc_phat_siren", "enabled": true, "params": {}},
+    {"name": "srp_phat_siren", "enabled": true, "params": {}},
+    {"name": "gcc_phat_wide",  "enabled": true, "trigger": "onset_detector", "params": {}},
+    {"name": "srp_phat_wide",  "enabled": true, "trigger": "onset_detector", "params": {}}
+  ],
+  "distance": [
+    {"name": "distance_spl",  "enabled": true, "params": {}},
+    {"name": "distance_tdoa", "enabled": true, "params": {}}
+  ]
+}

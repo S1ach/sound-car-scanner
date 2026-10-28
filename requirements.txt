@@ -1,0 +1,9 @@
+numpy>=1.24
+scipy>=1.10
+pyroomacoustics>=0.7
+pyroadacoustics          # симулятор проезда (Сафаров); при проблемах ставить из GitHub
+pytest>=7.0
+
+# [НА БУДУЩЕЕ]
+# sounddevice>=0.4       # живой захват звука (drivers/audio_driver.py)
+# ultralytics>=8.0       # YOLO для cv_tracker/

@@ -1,0 +1,19 @@
+# Окружение
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.idea/
+.vscode/
+.DS_Store
+
+# Тяжёлые данные (структура папок data/ сохраняется через .gitkeep)
+data/raw/*
+data/lut/*
+data/logs/*
+!data/**/.gitkeep
+*.wav
+*.npy
+*.npz
+*.log
