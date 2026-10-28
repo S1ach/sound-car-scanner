@@ -109,7 +109,8 @@ cv_tracker/           [на будущее] yolo_tracker.py (YOLO + BoT-SORT), c
 - **Лог конвейера** (`data/logs/*.csv`), длинный формат, одна строка на пару (фрейм, блок):
   `frame_index, timestamp_s, kind, block, value, confidence, processing_ms`.
   `timestamp_s` — центр фрейма, его можно сопоставлять с GT напрямую.
-- **LUT** (`data/lut/*.npz`): `azimuths_deg (n,)`, `delays_s (n, channels)`, `mic_positions`, `speed_of_sound`.
+- **LUT** (`data/lut/*.npy`): `<array>_far_field_<res>deg.npy` — задержки `(n_angles, channels)` в секундах,
+  `<array>_far_field_<res>deg_azimuths.npy` — сетка азимутов `(n_angles,)`.
 
 ## Открытые вопросы
 

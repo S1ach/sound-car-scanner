@@ -3,13 +3,13 @@
 Прерасчёт таблицы задержек (LUT) дальней зоны для SRP-PHAT / MUSIC.
 
     python scripts/precompute_lut.py --resolution 1.0
-    -> data/lut/<array_name>_far_field_1deg.npz
+    -> data/lut/<array_name>_far_field_1deg.npy           delays_s     (n_angles, channels), секунды
+    -> data/lut/<array_name>_far_field_1deg_azimuths.npy  azimuths_deg (n_angles,)
 
-Содержимое .npz:
-    azimuths_deg : (n_angles,)           сетка азимутов
-    delays_s     : (n_angles, channels)  задержки tau_m относительно центра массива, секунды
-    mic_positions: (channels, 3)
-    speed_of_sound: скаляр
+delays_s[i, m] — задержка tau_m микрофона m относительно центра массива для азимута azimuths_deg[i].
+Геометрия и скорость звука, по которым построена таблица, — в config/array_config.json.
+
+    delays = np.load("data/lut/uca8_r50mm_far_field_1deg.npy")
 
 Задержки не зависят от fs; сдвиги в сэмплах / фазовые множители e^{-j 2π f tau} считаются в prepare() блока.
 """
@@ -36,11 +36,13 @@ def main() -> None:
     azimuths = np.arange(0.0, 360.0, args.resolution)
     delays = far_field_delays(geometry, azimuths)
 
-    out = Path(args.out) if args.out else DATA_DIR / "lut" / f"{geometry.name}_far_field_{args.resolution:g}deg.npz"
+    out = Path(args.out) if args.out else DATA_DIR / "lut" / f"{geometry.name}_far_field_{args.resolution:g}deg.npy"
+    out = out.with_suffix(".npy")
+    azimuths_out = out.with_name(f"{out.stem}_azimuths.npy")
     out.parent.mkdir(parents=True, exist_ok=True)
-    np.savez(out, azimuths_deg=azimuths, delays_s=delays,
-             mic_positions=geometry.mic_positions, speed_of_sound=geometry.speed_of_sound)
-    print(f"LUT {delays.shape} -> {out}")
+    np.save(out, delays)
+    np.save(azimuths_out, azimuths)
+    print(f"LUT {delays.shape} -> {out}\nСетка азимутов -> {azimuths_out}")
 
 
 if __name__ == "__main__":
