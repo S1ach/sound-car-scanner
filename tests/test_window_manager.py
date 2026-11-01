@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from core.window_manager import RealTimeWindowManager
 
@@ -37,3 +38,8 @@ def test_hop_alignment_and_window():
     signal = np.arange(200, dtype=np.float32)[None, :]
     frames = collect(wm, signal, chunk=7)
     np.testing.assert_allclose(frames[1], signal[:, 20:60] * wm.window)
+
+
+def test_zero_hop_is_rejected():
+    with pytest.raises(ValueError):
+        RealTimeWindowManager(1, 1000, 40.0, 99.0)     # шаг 0 привёл бы к бесконечному циклу

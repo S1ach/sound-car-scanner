@@ -109,8 +109,15 @@ class BaseDistanceEstimator(BaseBlock):
 # Валидация результатов (используется конвейером и контрактными тестами)
 # ---------------------------------------------------------------------------
 
+def _to_float(value: Any, what: str, block: str) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError) as exc:
+        raise ContractViolation(f"[{block}] {what}={value!r} не является числом") from exc
+
+
 def _check_unit_interval(value: Any, what: str, block: str) -> float:
-    value = float(value)
+    value = _to_float(value, what, block)
     if not (0.0 <= value <= 1.0):
         raise ContractViolation(f"[{block}] {what}={value} вне диапазона [0.0, 1.0]")
     return value
@@ -122,15 +129,21 @@ def _check_pair(result: Any, block: str) -> Tuple[Any, Any]:
     return result
 
 
-def validate_frame(X_frame: np.ndarray, channels: int, block: str) -> None:
-    if not isinstance(X_frame, np.ndarray) or X_frame.ndim != 2 or X_frame.shape[0] != channels:
+def validate_frame(X_frame: np.ndarray, channels: int, block: str, samples: Optional[int] = None) -> None:
+    expected = samples if samples is not None else "samples"
+    if not isinstance(X_frame, np.ndarray) or X_frame.ndim != 2 or X_frame.shape[0] != channels \
+            or (samples is not None and X_frame.shape[1] != samples):
         shape = getattr(X_frame, "shape", None)
-        raise ContractViolation(f"[{block}] ожидался фрейм формы ({channels}, samples), получено {shape}")
+        raise ContractViolation(f"[{block}] ожидался фрейм формы ({channels}, {expected}), получено {shape}")
+    if X_frame.dtype != np.float32:
+        raise ContractViolation(f"[{block}] ожидался фрейм float32, получено {X_frame.dtype}")
+    if not np.all(np.isfinite(X_frame)):
+        raise ContractViolation(f"[{block}] фрейм содержит NaN или Inf")
 
 
 def validate_doa_result(result: Any, block: str = "doa") -> Tuple[float, float]:
     angle, confidence = _check_pair(result, block)
-    angle = float(angle)
+    angle = _to_float(angle, "angle_degrees", block)
     if not math.isfinite(angle) or not (0.0 <= angle <= 360.0):
         raise ContractViolation(f"[{block}] angle_degrees={angle} вне диапазона [0.0, 360.0]")
     return angle % 360.0, _check_unit_interval(confidence, "confidence_score", block)
@@ -138,12 +151,14 @@ def validate_doa_result(result: Any, block: str = "doa") -> Tuple[float, float]:
 
 def validate_detector_result(result: Any, block: str = "detector") -> Tuple[bool, float]:
     triggered, score = _check_pair(result, block)
+    if not isinstance(triggered, (bool, np.bool_)):
+        raise ContractViolation(f"[{block}] triggered={triggered!r} должен быть bool")
     return bool(triggered), _check_unit_interval(score, "score", block)
 
 
 def validate_distance_result(result: Any, block: str = "distance") -> Tuple[float, float]:
     distance, confidence = _check_pair(result, block)
-    distance = float(distance)
+    distance = _to_float(distance, "distance_m", block)
     if not math.isnan(distance) and (distance < 0.0 or math.isinf(distance)):
         raise ContractViolation(f"[{block}] distance_m={distance} должно быть >= 0 или nan")
     return distance, _check_unit_interval(confidence, "confidence_score", block)

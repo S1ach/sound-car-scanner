@@ -9,6 +9,7 @@
 import argparse
 import csv
 import math
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -19,7 +20,7 @@ from core import profiler
 from core.config import load_array_geometry, load_pipeline_config
 from core.geometry import ArrayGeometry
 from core.interfaces import (
-    ContractViolation, validate_detector_result, validate_distance_result, validate_doa_result, validate_frame,
+    validate_detector_result, validate_distance_result, validate_doa_result, validate_frame,
 )
 from core.registry import create
 from core.window_manager import RealTimeWindowManager
@@ -46,9 +47,10 @@ class Pipeline:
         self.config = config
         self.geometry = geometry
         self.fs = fs
-        self.budget_ms = float(config.get("realtime_budget_ms", 20.0))
         self.confidence_threshold = float(config.get("confidence_threshold", 0.5))
         self.strict = bool(config.get("strict_contract", True))
+        self.block_budgets: Dict[str, float] = {}
+        self.block_failures: Dict[str, int] = {}
 
         window = config.get("window", {})
         self.window_manager = RealTimeWindowManager(
@@ -58,10 +60,18 @@ class Pipeline:
             overlap_pct=window.get("overlap_pct", 50.0),
         )
 
+        # Цепочка обязана успевать за шаг окна, иначе очередь фреймов растёт
+        hop_ms = self.window_manager.hop_duration_s * 1000.0
+        self.budget_ms = min(float(config.get("realtime_budget_ms", hop_ms)), hop_ms)
+
         def build(kind: str, key: str):
+            entries = _enabled(config.get(key, []))
+            for e in entries:
+                if "budget_ms" in e:
+                    self.block_budgets[e["name"]] = float(e["budget_ms"])
             return [
                 (create(kind, e["name"], geometry=geometry, fs=fs, **e.get("params", {})), e)
-                for e in _enabled(config.get(key, []))
+                for e in entries
             ]
 
         self.pre_processors = [b for b, _ in build("pre_processor", "pre_processing")]
@@ -80,19 +90,28 @@ class Pipeline:
     def reset(self) -> None:
         self.window_manager.reset()
         self.frame_index = 0
+        self.block_failures.clear()
         for block in (*self.pre_processors, *self.detectors, *(l for l, _ in self.localizers),
                       *self.distance_estimators):
             block.reset()
 
     def _call(self, block, validator: Callable, fn: Callable, *args):
-        with profiler.measure(f"{block.name}"):
-            result = fn(*args)
+        """Вызов блока. strict_contract=false: сбой блока не останавливает конвейер, результат отбрасывается."""
         try:
+            with profiler.measure(block.name, self.block_budgets.get(block.name)):
+                result = fn(*args)
             return validator(result, block.name)
-        except ContractViolation:
+        except Exception as exc:
             if self.strict:
                 raise
+            self.block_failures[block.name] = self.block_failures.get(block.name, 0) + 1
+            if self.block_failures[block.name] == 1:
+                warnings.warn(f"[{block.name}] результат отброшен: {exc!r}", RuntimeWarning, stacklevel=2)
             return None
+
+    def _validate_cleaned_frame(self, frame: np.ndarray, block: str) -> np.ndarray:
+        validate_frame(frame, self.geometry.channels, block, self.window_manager.frame_samples)
+        return frame
 
     def process_frame(self, frame: np.ndarray) -> FrameResult:
         wm = self.window_manager
@@ -105,9 +124,10 @@ class Pipeline:
         with profiler.measure("pipeline:frame", self.budget_ms):
             frame.setflags(write=False)
             for pre in self.pre_processors:
-                with profiler.measure(pre.name):
-                    frame = pre.process(frame, self.fs)
-                validate_frame(frame, self.geometry.channels, pre.name)
+                cleaned = self._call(pre, self._validate_cleaned_frame, pre.process, frame, self.fs)
+                if cleaned is None:     # блок сбойнул: дальше идёт фрейм с предыдущего шага
+                    continue
+                frame = cleaned
                 if frame.flags.writeable:
                     frame.setflags(write=False)
 
@@ -137,17 +157,21 @@ class Pipeline:
         return result
 
     def run(self, source: BaseAudioSource,
-            on_result: Optional[Callable[[FrameResult], None]] = None) -> List[FrameResult]:
+            on_result: Optional[Callable[[FrameResult], None]] = None,
+            keep_results: bool = True) -> List[FrameResult]:
+        """Прогон источника с начала. keep_results=False — для живого потока: результаты только в on_result."""
         if source.fs != self.fs or source.channels != self.geometry.channels:
             raise ValueError(
                 f"Источник ({source.channels} кан., {source.fs} Гц) не совпадает с конвейером "
                 f"({self.geometry.channels} кан., {self.fs} Гц)"
             )
+        self.reset()
         results: List[FrameResult] = []
 
         def callback(frame: np.ndarray) -> None:
             r = self.process_frame(frame)
-            results.append(r)
+            if keep_results:
+                results.append(r)
             if on_result is not None:
                 on_result(r)
 
@@ -172,6 +196,9 @@ def write_log(results: List[FrameResult], path: Path) -> None:
                 for name, (value, conf) in items.items():
                     value = "" if isinstance(value, float) and math.isnan(value) else float(value)
                     w.writerow(base + [kind, name, value, f"{conf:.4f}", f"{r.processing_ms:.3f}"])
+            if r.best_doa is not None:
+                name, angle, conf = r.best_doa
+                w.writerow(base + ["best_doa", name, angle, f"{conf:.4f}", f"{r.processing_ms:.3f}"])
 
 
 def main() -> None:
@@ -197,6 +224,8 @@ def main() -> None:
     print(f"Файл: {args.wav} ({source.duration_s:.2f} с, {source.channels} кан., {source.fs} Гц)")
     print(f"Фреймов: {len(results)}, лог: {args.log}\n")
     print(profiler.report())
+    if pipeline.block_failures:
+        print(f"\nСбои блоков (результаты отброшены): {pipeline.block_failures}")
 
 
 if __name__ == "__main__":

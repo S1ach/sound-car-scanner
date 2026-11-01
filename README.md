@@ -33,7 +33,8 @@ Pipeline.process_frame
    └─ FrameResult → data/logs/*.csv
 ```
 
-Бюджет всей цепочки — **< 20 мс на фрейм** (`realtime_budget_ms`), время каждого блока пишет `core/profiler.py`.
+Бюджет всей цепочки — **< 20 мс на фрейм** (`realtime_budget_ms`, но не больше шага окна), время каждого блока
+пишет `core/profiler.py`. Свой бюджет блока задаётся полем `"budget_ms"` в `pipeline_config.json`.
 
 ## Архитектурный контракт
 
@@ -55,8 +56,11 @@ Pipeline.process_frame
 - Состояние между фреймами (оценка шума, история энергии) сбрасывается в `reset()`.
 - Азимут: 0° — вдоль +X, растёт против часовой стрелки, 90° — вдоль +Y. Координаты в метрах.
 - Задержки: `x_m(t) = s(t − τ_m)`, `τ_m` относительно центра массива (`core.geometry.far_field_delays`).
-- Если результат нарушает контракт, конвейер бросает `ContractViolation` с именем блока
-  (`strict_contract: false` — результат просто отбрасывается).
+- `pre_processor` возвращает фрейм той же формы, float32, без NaN и Inf.
+- Если результат нарушает контракт, конвейер бросает `ContractViolation` с именем блока, исключение блока
+  пробрасывается как есть. При `strict_contract: false` (режим для борта) результат сбойного блока отбрасывается,
+  сбой считается в `Pipeline.block_failures`, а конвейер продолжает работу; после сбойного `pre_processor`
+  дальше идёт фрейм с предыдущего шага.
 
 ## Как добавить свой алгоритм
 
@@ -109,6 +113,7 @@ cv_tracker/           [на будущее] yolo_tracker.py (YOLO + BoT-SORT), c
 - **Лог конвейера** (`data/logs/*.csv`), длинный формат, одна строка на пару (фрейм, блок):
   `frame_index, timestamp_s, kind, block, value, confidence, processing_ms`.
   `timestamp_s` — центр фрейма, его можно сопоставлять с GT напрямую.
+  `kind`: `detector`, `doa`, `distance` и `best_doa` (итоговый азимут фрейма, в `block` — выбравший его блок).
 - **LUT** (`data/lut/*.npy`): `<array>_far_field_<res>deg.npy` — задержки `(n_angles, channels)` в секундах,
   `<array>_far_field_<res>deg_azimuths.npy` — сетка азимутов `(n_angles,)`.
 

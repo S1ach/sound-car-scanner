@@ -14,6 +14,10 @@ class RealTimeWindowManager:
         # Расчет длины фрейма и шага в сэмплах
         self.frame_samples = int((frame_duration_ms / 1000.0) * fs)
         self.hop_samples = int(self.frame_samples * (1.0 - overlap_pct / 100.0))
+        if self.hop_samples < 1:
+            raise ValueError(
+                f"Шаг окна меньше 1 сэмпла: фрейм {self.frame_samples} сэмплов, перекрытие {overlap_pct}%"
+            )
 
         # Внутренний FIFO-буфер для входящих аудиоданных
         self.buffer = np.zeros((channels, self.frame_samples), dtype=np.float32)

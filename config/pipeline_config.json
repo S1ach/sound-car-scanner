@@ -8,7 +8,7 @@
   "strict_contract": true,
 
   "pre_processing": [
-    {"name": "denoiser", "enabled": true, "params": {}}
+    {"name": "denoiser", "enabled": true, "budget_ms": 3.0, "params": {}}
   ],
   "detectors": [
     {"name": "onset_detector", "enabled": true, "params": {}}
