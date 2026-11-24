@@ -14,6 +14,7 @@
     {"name": "onset_detector", "enabled": true, "params": {}}
   ],
   "localizers": [
+    {"name": "srp_phat_reference", "enabled": true, "params": {"resolution_deg": 1.0, "f_min_hz": 300, "f_max_hz": 4000}},
     {"name": "music_siren",    "enabled": true, "params": {}},
     {"name": "gcc_phat_siren", "enabled": true, "params": {}},
     {"name": "srp_phat_siren", "enabled": true, "params": {}},

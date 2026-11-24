@@ -4,7 +4,9 @@
 по многоканальному микрофонному массиву.
 
 **Текущий этап — 1: виртуальный полигон и ядро.** Ядро, оконный менеджер, профайлер, стример файлов
-и конвейер работают; все алгоритмы пока заглушки, которые соблюдают контракт.
+и конвейер работают; алгоритмы команды пока заглушки, которые соблюдают контракт.
+Эталонный `srp_phat_reference` показывает, что фреймы доходят до алгоритма без искажений:
+на синтетике с источником на 60° конвейер выдаёт `best_doa` = 60°.
 
 ## Быстрый старт
 
@@ -99,9 +101,11 @@ modules/
   sirens/             music_localizer.py (Акулов), gcc_phat_siren.py (Кузин), srp_phat_siren.py (Сагитов)
   hearing/            onset_detector.py, gcc_phat_wide.py (Косолапов), srp_phat_wide.py (Балуев)
   fusion/             distance_spl.py (Алехина), distance_tdoa.py (Артемьев)
+  reference/          srp_phat_reference.py — эталонный SRP-PHAT: проверка каркаса и baseline точности
 pipeline.py           оркестратор + CLI
 scripts/              run_simulation.py (Сафаров), precompute_lut.py
-tests/                контрактные тесты, тесты оконного менеджера, smoke-тест конвейера
+tests/                контрактные тесты, тесты оконного менеджера, smoke-тест конвейера,
+                      test_frame_transport.py — приёмка: форма/тип фреймов на входе DOA и точность эталона
 data/                 raw/, lut/, logs/: не коммитится
 cv_tracker/           [на будущее] yolo_tracker.py (YOLO + BoT-SORT), camera_calibration.py (пиксели → азимут/угол места)
 ```
